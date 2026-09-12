@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>错题白卷生成器</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+    background: #f4f3ee; color: #1a1b1c; min-height: 100vh; padding: 20px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { font-size: 13px; color: #6b7280; margin-bottom: 16px; line-height: 1.6; }
+  .cols { display: flex; gap: 16px; flex-wrap: wrap; }
+  .col { flex: 1 1 460px; min-width: 0; }
+
+  .panel {
+    background: #fff; border: 1px solid #e4e3dd; border-radius: 12px;
+    padding: 16px; margin-bottom: 16px;
+  }
+  .panel h2 { font-size: 15px; margin-bottom: 10px; }
+
+  #drop {
+    border: 2px dashed #9bbbf4; border-radius: 10px; padding: 28px 12px;
+    text-align: center; color: #6b7280; cursor: pointer; background: #fafbff;
+    transition: background .15s;
+  }
+  #drop:hover { background: #f0f5ff; }
+  #drop b { color: #3b82f6; }
+  #fileInput { display: none; }
+
+  #pageBar {
+    display: none; gap: 8px; flex-wrap: wrap; align-items: center;
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid #eee;
+  }
+  .page-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid #dbe3ef; background: #f8fafc; border-radius: 8px;
+    padding: 6px 10px; cursor: pointer; font-size: 13px; color: #334155;
+  }
+  .page-chip.active { border-color: #3b82f6; background: #eff6ff; color: #1d4ed8; }
+  .page-chip .cnt {
+    font-size: 11px; background: #e2e8f0; border-radius: 999px;
+    padding: 1px 7px; color: #475569;
+  }
+  .page-chip.active .cnt { background: #bfdbfe; color: #1e40af; }
+  .page-chip .rm {
+    border: 0; background: transparent; color: #94a3b8; cursor: pointer;
+    font-size: 14px; line-height: 1; padding: 0 2px;
+  }
+  .page-chip .rm:hover { color: #dc2626; }
+  #btnAddMore {
+    border: 1px dashed #93c5fd; background: #fff; color: #2563eb;
+    border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+  }
+  #btnAddMore:hover { background: #eff6ff; }
+
+  #canvasBox { position: relative; display: none; margin-top: 12px; }
+  canvas {
+    display: block; max-width: 100%; height: auto;
+    border: 1px solid #e4e3dd; border-radius: 8px; background: #fff;
+    cursor: crosshair; touch-action: none;
+  }
+  .tips { font-size: 12px; color: #6b7280; margin-top: 8px; line-height: 1.6; }
+  .bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  button {
+    border: 0; border-radius: 8px; padding: 9px 16px; font-size: 14px;
+    cursor: pointer; font-family: inherit;
+  }
+  .btn-primary { background: #3b82f6; color: #fff; }
+  .btn-primary:hover { background: #2f6fd6; }
+  .btn-primary:disabled { background: #b6cdf5; cursor: not-allowed; }
+  .btn-ghost { background: #eef2f7; color: #333; }
+  .btn-ghost:hover { background: #e2e8f0; }
+  .btn-ghost:disabled { background: #f1f3f5; color: #a8adb5; cursor: not-allowed; }
+  .btn-warn { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
+  .btn-warn.active { background: #ea580c; color: #fff; border-color: #ea580c; }
+
+  #result { display: block; }
+  #resultCanvas { display: none; max-width: 100%; border: 1px solid #e4e3dd; border-radius: 8px; background: #fff; cursor: default; touch-action: none; }
+  #status { font-size: 13px; color: #6b7280; margin-top: 10px; line-height: 1.6; min-height: 20px; }
+  #status.error { color: #c0392b; }
+  #status.ok { color: #389e0d; }
+  .dl { margin-top: 12px; }
+  a.download {
+    display: inline-block; background: #389e0d; color: #fff; text-decoration: none;
+    border-radius: 8px; padding: 10px 20px; font-size: 14px;
+  }
+  a.download:hover { background: #2f8a0b; }
+
+  .badge { display: inline-block; font-size: 12px; color: #fff; background: #3b82f6;
+           border-radius: 10px; padding: 1px 8px; margin-left: 6px; }
+  .mode-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; min-height: 0; }
+  .mode-tag {
+    font-size: 12px; color: #334155; background: #eef2f7;
+    border-radius: 8px; padding: 3px 10px;
+  }
+  .mode-tag.text_only { background: #e8f5e9; color: #2e7d32; }
+  .mode-tag.mixed { background: #e3f2fd; color: #1565c0; }
+  .mode-tag.fallback { background: #fff3e0; color: #ef6c00; }
+  .loading { color: #3b82f6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>错题白卷生成器</h1>
+  <div class="sub">
+    可一次上传<strong>多张</strong>试卷照片 → 切换每张图<strong>分别框选</strong>错题 → 合并生成一份 A4 白卷 PDF（题多自动分页）。
+  </div>
+
+  <div class="cols">
+    <div class="col">
+      <div class="panel">
+        <h2>① 上传试卷并框选错题</h2>
+        <div id="drop">
+          点击选择图片（可多选），或把多张试卷照片<b>拖到这里</b><br>
+          <span style="font-size:12px;">支持 jpg / png；可继续「添加图片」</span>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" multiple>
+        <div id="pageBar"></div>
+        <div id="canvasBox">
+          <canvas id="cv"></canvas>
+          <div class="tips">
+            当前正在编辑：<b id="curPageLabel">第 1 张</b>。拖框选择题目；双击框选区域可删除。答案残留请在生成后的预览中标记。
+          </div>
+          <div class="bar">
+            <button id="btnUndo" class="btn-ghost" disabled>撤销最后一框</button>
+            <button id="btnClear" class="btn-ghost" disabled>清空本张框选</button>
+          </div>
+        </div>
+      </div>
+      <button id="btnGen" class="btn-primary" style="width:100%;" disabled>生成错题白卷（合并 PDF）</button>
+    </div>
+  </div>
+
+  <div class="panel" id="result">
+    <h2>② 白卷结果<span id="countBadge" class="badge"></span></h2>
+    <div id="modeTags" class="mode-tags"></div>
+    <div id="resultEmpty" class="tips">生成预览后，可在这里标记残留答案；蓝色的“应用标记并重新生成 PDF”按钮会在标记至少一处后可用。</div>
+    <canvas id="resultCanvas" aria-label="白卷预览"></canvas>
+    <div class="tips">先查看预览。若仍有未擦除的答案，开启下方标记模式，在预览上用橙色框圈住它；应用后会直接生成新的 PDF，不会重新上传或调用云端。</div>
+    <div class="bar">
+      <button id="btnResultMark" class="btn-warn" disabled>标记预览残留：关</button>
+      <button id="btnResultUndo" class="btn-ghost" disabled>撤销预览标记</button>
+      <button id="btnResultApply" class="btn-primary" disabled>应用标记并重新生成 PDF</button>
+    </div>
+    <div class="dl">
+      <a class="download" id="dlPdf" href="#" download>下载 A4 白卷 PDF（打印）</a>
+    </div>
+  </div>
+  <div id="status"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var cv = document.getElementById("cv");
+  var ctx = cv.getContext("2d");
+  var drop = document.getElementById("drop");
+  var fileInput = document.getElementById("fileInput");
+  var canvasBox = document.getElementById("canvasBox");
+  var pageBar = document.getElementById("pageBar");
+  var btnGen = document.getElementById("btnGen");
+  var btnUndo = document.getElementById("btnUndo");
+  var btnClear = document.getElementById("btnClear");
+  var statusEl = document.getElementById("status");
+  var resultEl = document.getElementById("result");
+  var resultEmpty = document.getElementById("resultEmpty");
+  var resultCanvas = document.getElementById("resultCanvas");
+  var resultCtx = resultCanvas.getContext("2d");
+  var previewImage = new Image();
+  var btnResultMark = document.getElementById("btnResultMark");
+  var btnResultUndo = document.getElementById("btnResultUndo");
+  var btnResultApply = document.getElementById("btnResultApply");
+  var dlPdf = document.getElementById("dlPdf");
+  var countBadge = document.getElementById("countBadge");
+  var modeTags = document.getElementById("modeTags");
+  var curPageLabel = document.getElementById("curPageLabel");
+
+  // pages: [{ file, img, boxes, name }, ...]
+  var pages = [];
+  var curIdx = 0;
+  var drawing = false;
+  var cur = null;
+  var busy = false;
+  var appendMode = false;
+  var resultJobId = "";
+  var resultMasks = [];
+  var resultMarkMode = false;
+  var resultDrawing = false;
+  var resultCur = null;
+  var resultPageHeight = 0;
+  var resultGap = 0;
+
+  var CANVAS_W = 720;
+  var MODE_LABEL = { image_clean: "保真擦除", text_only: "文字重排", mixed: "带图混合", fallback: "擦除兜底" };
+
+  function setStatus(msg, cls) {
+    statusEl.textContent = msg;
+    statusEl.className = cls || "";
+  }
+
+  function curPage() {
+    return pages[curIdx] || null;
+  }
+
+  function totalBoxes() {
+    var n = 0;
+    for (var i = 0; i < pages.length; i++) n += pages[i].boxes.length;
+    return n;
+  }
+
+  function updateButtons() {
+    var p = curPage();
+    var has = p && p.boxes.length > 0;
+    btnUndo.disabled = !has;
+    btnClear.disabled = !p || p.boxes.length === 0;
+    btnGen.disabled = totalBoxes() === 0 || busy || pages.length === 0;
+  }
+
+  function renderPageBar() {
+    pageBar.style.display = pages.length ? "flex" : "none";
+    pageBar.innerHTML = "";
+    for (var i = 0; i < pages.length; i++) {
+      (function (idx) {
+        var chip = document.createElement("div");
+        chip.className = "page-chip" + (idx === curIdx ? " active" : "");
+        chip.innerHTML =
+          "<span>第" + (idx + 1) + "张</span>" +
+          "<span class=\"cnt\">" + pages[idx].boxes.length + "题</span>" +
+          "<button type=\"button\" class=\"rm\" title=\"移除这张\">×</button>";
+        chip.addEventListener("click", function (e) {
+          if (e.target && e.target.classList.contains("rm")) {
+            e.stopPropagation();
+            removePage(idx);
+            return;
+          }
+          switchPage(idx);
+        });
+        pageBar.appendChild(chip);
+      })(i);
+    }
+    var addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.id = "btnAddMore";
+    addBtn.textContent = "+ 添加图片";
+    addBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      appendMode = true;
+      fileInput.click();
+    });
+    pageBar.appendChild(addBtn);
+  }
+
+  function switchPage(idx) {
+    if (idx < 0 || idx >= pages.length) return;
+    curIdx = idx;
+    curPageLabel.textContent = "第 " + (idx + 1) + " 张" +
+      (pages[idx].name ? "（" + pages[idx].name + "）" : "");
+    canvasBox.style.display = "block";
+    fitCanvas();
+    render();
+    renderPageBar();
+    updateButtons();
+  }
+
+  function removePage(idx) {
+    if (busy) return;
+    pages.splice(idx, 1);
+    if (!pages.length) {
+      curIdx = 0;
+      canvasBox.style.display = "none";
+      pageBar.style.display = "none";
+      setStatus("已清空全部图片，请重新上传");
+      updateButtons();
+      return;
+    }
+    if (curIdx >= pages.length) curIdx = pages.length - 1;
+    switchPage(curIdx);
+    setStatus("已移除，还剩 " + pages.length + " 张图，共框选 " + totalBoxes() + " 道题");
+  }
+
+  function loadFiles(fileList, append) {
+    var list = Array.prototype.slice.call(fileList || []).filter(function (f) {
+      return f && /^image\//.test(f.type);
+    });
+    if (!list.length) {
+      setStatus("请选择图片文件（jpg / png）", "error");
+      return;
+    }
+    if (!append) {
+      pages = [];
+      curIdx = 0;
+      resultEl.style.display = "none";
+      modeTags.innerHTML = "";
+    }
+    var startLen = pages.length;
+    var loaded = new Array(list.length);
+    var pending = list.length;
+    list.forEach(function (file, fileIndex) {
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var im = new Image();
+        im.onload = function () {
+          loaded[fileIndex] = {
+            file: file,
+            img: im,
+            boxes: [],
+            name: file.name || ("图片" + (startLen + fileIndex + 1))
+          };
+          pending--;
+          if (pending === 0) {
+            pages = pages.concat(loaded.filter(function (item) { return !!item; }));
+            curIdx = append ? startLen : 0;
+            if (curIdx >= pages.length) curIdx = pages.length - 1;
+            switchPage(curIdx);
+            setStatus(
+              "已加载 " + pages.length + " 张图。请切换每张分别框选，然后生成合并 PDF。",
+              "ok"
+            );
+          }
+        };
+        im.onerror = function () {
+          pending--;
+          setStatus("有图片加载失败，请重试", "error");
+        };
+        im.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  drop.addEventListener("click", function () {
+    appendMode = false;
+    fileInput.click();
+  });
+  fileInput.addEventListener("change", function () {
+    if (fileInput.files && fileInput.files.length) {
+      loadFiles(fileInput.files, appendMode);
+    }
+    appendMode = false;
+    fileInput.value = "";
+  });
+  ["dragover", "drop"].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); });
+  });
+  drop.addEventListener("drop", function (e) {
+    var fs = e.dataTransfer.files;
+    if (fs && fs.length) loadFiles(fs, pages.length > 0);
+  });
+
+  function fitCanvas() {
+    var p = curPage();
+    if (!p) return;
+    var ratio = p.img.naturalHeight / p.img.naturalWidth;
+    cv.width = CANVAS_W;
+    cv.height = Math.round(CANVAS_W * ratio);
+  }
+
+  function toImageX(px) {
+    var p = curPage();
+    return px * (p.img.naturalWidth / cv.width);
+  }
+  function toImageY(py) {
+    var p = curPage();
+    return py * (p.img.naturalHeight / cv.height);
+  }
+  function toDispX(ix) {
+    var p = curPage();
+    return ix * (cv.width / p.img.naturalWidth);
+  }
+  function toDispY(iy) {
+    var p = curPage();
+    return iy * (cv.height / p.img.naturalHeight);
+  }
+
+  function render() {
+    var p = curPage();
+    if (!p) return;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.drawImage(p.img, 0, 0, cv.width, cv.height);
+    for (var i = 0; i < p.boxes.length; i++) {
+      drawBox(p.boxes[i], i + 1, false);
+    }
+    if (drawing && cur) {
+      drawDispRect(cur.x1, cur.y1, cur.x2, cur.y2, true);
+    }
+  }
+
+  function drawDispRect(x1, y1, x2, y2, dash) {
+    ctx.save();
+    ctx.fillStyle = "rgba(59,130,246,0.12)";
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 2;
+    if (dash) ctx.setLineDash([6, 4]);
+    ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    ctx.restore();
+  }
+
+  function drawBox(b, idx, dash) {
+    var X1 = toDispX(b.x1), Y1 = toDispY(b.y1);
+    drawDispRect(X1, Y1, toDispX(b.x2), toDispY(b.y2), dash);
+    ctx.save();
+    ctx.fillStyle = "#2563eb";
+    ctx.font = "bold 15px sans-serif";
+    ctx.fillText(idx, X1 + 4, Y1 + 16);
+    ctx.restore();
+  }
+
+  function pos(e) {
+    var rect = cv.getBoundingClientRect();
+    var x = (e.clientX - rect.left) * (cv.width / rect.width);
+    var y = (e.clientY - rect.top) * (cv.height / rect.height);
+    return { x: Math.max(0, Math.min(cv.width, x)), y: Math.max(0, Math.min(cv.height, y)) };
+  }
+
+  function commitBox() {
+    var p = curPage();
+    if (!p || !cur) return;
+    if (Math.abs(cur.x2 - cur.x1) > 10 && Math.abs(cur.y2 - cur.y1) > 10) {
+      var box = {
+        x1: Math.round(toImageX(Math.min(cur.x1, cur.x2))),
+        y1: Math.round(toImageY(Math.min(cur.y1, cur.y2))),
+        x2: Math.round(toImageX(Math.max(cur.x1, cur.x2))),
+        y2: Math.round(toImageY(Math.max(cur.y1, cur.y2)))
+      };
+      p.boxes.push(box);
+    }
+    cur = null;
+    render();
+    renderPageBar();
+    updateButtons();
+  }
+
+  cv.addEventListener("mousedown", function (e) {
+    if (!curPage() || busy) return;
+    var p = pos(e);
+    drawing = true;
+    cur = { x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+  });
+  cv.addEventListener("mousemove", function (e) {
+    if (!drawing) return;
+    var p = pos(e);
+    cur.x2 = p.x;
+    cur.y2 = p.y;
+    render();
+  });
+  window.addEventListener("mouseup", function () {
+    if (!drawing) return;
+    drawing = false;
+    commitBox();
+  });
+
+  cv.addEventListener("dblclick", function (e) {
+    var p = curPage();
+    if (!p) return;
+    var pt = pos(e);
+    var ix = toImageX(pt.x), iy = toImageY(pt.y);
+    var target = p.boxes;
+    for (var i = target.length - 1; i >= 0; i--) {
+      var b = target[i];
+      if (ix >= b.x1 && ix <= b.x2 && iy >= b.y1 && iy <= b.y2) {
+        target.splice(i, 1);
+        render();
+        renderPageBar();
+        updateButtons();
+        return;
+      }
+    }
+  });
+
+  btnUndo.addEventListener("click", function () {
+    var p = curPage();
+    if (!p) return;
+    p.boxes.pop();
+    render();
+    renderPageBar();
+    updateButtons();
+  });
+  btnClear.addEventListener("click", function () {
+    var p = curPage();
+    if (!p) return;
+    p.boxes = [];
+    render();
+    renderPageBar();
+    updateButtons();
+  });
+
+  function updateResultButtons() {
+    var ready = !!resultJobId && !busy;
+    btnResultMark.disabled = !ready;
+    btnResultUndo.disabled = !ready || resultMasks.length === 0;
+    btnResultApply.disabled = !ready || resultMasks.length === 0;
+    btnResultMark.textContent = "标记预览残留：" + (resultMarkMode ? "开" : "关");
+    btnResultMark.classList.toggle("active", resultMarkMode);
+    resultCanvas.style.cursor = resultMarkMode ? "crosshair" : "default";
+  }
+
+  function renderResultPreview() {
+    if (!previewImage.naturalWidth || !resultCanvas.width) return;
+    resultCtx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
+    resultCtx.drawImage(previewImage, 0, 0, resultCanvas.width, resultCanvas.height);
+    var sx = resultCanvas.width / previewImage.naturalWidth;
+    var sy = resultCanvas.height / previewImage.naturalHeight;
+    resultCtx.save();
+    resultCtx.fillStyle = "rgba(234, 88, 12, .16)";
+    resultCtx.strokeStyle = "#ea580c";
+    resultCtx.lineWidth = 2;
+    resultMasks.forEach(function (m) {
+      var y = m.page * (resultPageHeight + resultGap) + m.y1;
+      resultCtx.fillRect(m.x1 * sx, y * sy, (m.x2 - m.x1) * sx, (m.y2 - m.y1) * sy);
+      resultCtx.strokeRect(m.x1 * sx, y * sy, (m.x2 - m.x1) * sx, (m.y2 - m.y1) * sy);
+    });
+    if (resultCur) {
+      var x = Math.min(resultCur.x1, resultCur.x2), y2 = Math.min(resultCur.y1, resultCur.y2);
+      var w = Math.abs(resultCur.x2 - resultCur.x1), h = Math.abs(resultCur.y2 - resultCur.y1);
+      resultCtx.fillRect(x, y2, w, h);
+      resultCtx.strokeRect(x, y2, w, h);
+    }
+    resultCtx.restore();
+  }
+
+  function showResultPreview(res) {
+    resultJobId = res.job_id || "";
+    resultPageHeight = Number(res.preview_page_height) || 1754;
+    resultGap = Number(res.preview_gap) || 24;
+    resultMasks = [];
+    resultMarkMode = false;
+    previewImage.onload = function () {
+      var maxW = Math.min(800, previewImage.naturalWidth);
+      resultCanvas.width = maxW;
+      resultCanvas.height = Math.round(previewImage.naturalHeight * maxW / previewImage.naturalWidth);
+      resultCanvas.style.display = "block";
+      renderResultPreview();
+      updateResultButtons();
+    };
+    previewImage.src = res.preview + "?t=" + Date.now();
+    updateResultButtons();
+  }
+
+  function resultPos(e) {
+    var rect = resultCanvas.getBoundingClientRect();
+    return { x: (e.clientX - rect.left) * resultCanvas.width / rect.width,
+             y: (e.clientY - rect.top) * resultCanvas.height / rect.height };
+  }
+
+  function commitResultMask() {
+    if (!resultCur || !previewImage.naturalWidth) return;
+    var sx = previewImage.naturalWidth / resultCanvas.width;
+    var sy = previewImage.naturalHeight / resultCanvas.height;
+    var x1 = Math.min(resultCur.x1, resultCur.x2) * sx;
+    var x2 = Math.max(resultCur.x1, resultCur.x2) * sx;
+    var fullY1 = Math.min(resultCur.y1, resultCur.y2) * sy;
+    var fullY2 = Math.max(resultCur.y1, resultCur.y2) * sy;
+    var period = resultPageHeight + resultGap;
+    var page = Math.floor(fullY1 / period);
+    var pageBottom = page * period + resultPageHeight;
+    if (x2 - x1 >= 8 && fullY2 - fullY1 >= 8 && fullY1 >= page * period && fullY2 <= pageBottom) {
+      resultMasks.push({ page: page, x1: Math.round(x1), y1: Math.round(fullY1 - page * period), x2: Math.round(x2), y2: Math.round(fullY2 - page * period) });
+    } else if (fullY2 > fullY1) {
+      setStatus("每个橙色框请只圈一页中的一处残留字，不能跨越页面之间的灰色间隔。", "error");
+    }
+    resultCur = null;
+    renderResultPreview();
+    updateResultButtons();
+  }
+
+  resultCanvas.addEventListener("mousedown", function (e) {
+    if (!resultMarkMode || busy) return;
+    var p = resultPos(e);
+    resultDrawing = true;
+    resultCur = { x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+  });
+  resultCanvas.addEventListener("mousemove", function (e) {
+    if (!resultDrawing) return;
+    var p = resultPos(e);
+    resultCur.x2 = p.x; resultCur.y2 = p.y;
+    renderResultPreview();
+  });
+  window.addEventListener("mouseup", function () {
+    if (!resultDrawing) return;
+    resultDrawing = false;
+    commitResultMask();
+  });
+  resultCanvas.addEventListener("dblclick", function (e) {
+    if (!resultMarkMode) return;
+    var p = resultPos(e), sx = previewImage.naturalWidth / resultCanvas.width;
+    var sy = previewImage.naturalHeight / resultCanvas.height;
+    var x = p.x * sx, y = p.y * sy, period = resultPageHeight + resultGap;
+    var page = Math.floor(y / period), pageY = y - page * period;
+    for (var i = resultMasks.length - 1; i >= 0; i--) {
+      var m = resultMasks[i];
+      if (m.page === page && x >= m.x1 && x <= m.x2 && pageY >= m.y1 && pageY <= m.y2) {
+        resultMasks.splice(i, 1); renderResultPreview(); updateResultButtons(); return;
+      }
+    }
+  });
+  btnResultMark.addEventListener("click", function () {
+    if (!resultJobId || busy) return;
+    resultMarkMode = !resultMarkMode;
+    setStatus(resultMarkMode ? "预览标记模式：用橙色框只圈未擦净的答案，双击橙色框可删除。" : "已退出预览标记模式。", "ok");
+    updateResultButtons();
+  });
+  btnResultUndo.addEventListener("click", function () {
+    resultMasks.pop(); renderResultPreview(); updateResultButtons();
+  });
+  btnResultApply.addEventListener("click", function () {
+    if (!resultJobId || resultMasks.length === 0 || busy) return;
+    var appliedCount = resultMasks.length;
+    busy = true; updateButtons(); updateResultButtons();
+    setStatus("正在应用预览标记并重新生成 PDF…", "loading");
+    fetch("/api/manual-erase-result", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job_id: resultJobId, masks: resultMasks }) })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        busy = false;
+        if (!res.ok) { setStatus(res.error || "重新生成失败", "error"); updateButtons(); updateResultButtons(); return; }
+        dlPdf.href = res.pdf;
+        dlPdf.setAttribute("download", "错题白卷.pdf");
+        showResultPreview(res);
+        setStatus("已应用 " + appliedCount + " 个预览标记，并生成新的 PDF。请继续查看预览；若还有残留，可再次标记。", "ok");
+        updateButtons();
+      })
+      .catch(function (err) { busy = false; setStatus("网络或服务出错：" + err.message, "error"); updateButtons(); updateResultButtons(); });
+  });
+
+  btnGen.addEventListener("click", function () {
+    if (pages.length === 0 || totalBoxes() === 0 || busy) return;
+    if (window.location.protocol === "file:") {
+      setStatus("当前打开的是模板文件，无法生成 PDF。请双击“启动工具.bat”，并在浏览器打开 http://127.0.0.1:7860。", "error");
+      return;
+    }
+    busy = true;
+    resultEl.style.display = "block";
+    resultEmpty.style.display = "block";
+    resultEmpty.textContent = "正在生成预览，完成后可在这里标记残留答案。";
+    resultCanvas.style.display = "none";
+    updateButtons();
+    setStatus(
+      "正在处理 " + pages.length + " 张图、共 " + totalBoxes() + " 个框选区域，请稍候…",
+      "loading"
+    );
+
+    var fd = new FormData();
+    var meta = [];
+    for (var i = 0; i < pages.length; i++) {
+      fd.append("files", pages[i].file, pages[i].name || ("page_" + (i + 1) + ".jpg"));
+      meta.push({ boxes: pages[i].boxes });
+    }
+    fd.append("pages", JSON.stringify(meta));
+
+    fetch("/api/erase", { method: "POST", body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        busy = false;
+        if (res.ok) {
+          showResultPreview(res);
+          dlPdf.href = res.pdf;
+          dlPdf.setAttribute("download", "错题白卷.pdf");
+          var extra = res.pdf_pages > 1 ? (" · PDF " + res.pdf_pages + " 页") : "";
+          countBadge.textContent =
+            res.page_count + " 张图 · " + (res.selection_count || res.count) + " 个框选区域" + extra;
+          modeTags.innerHTML = "";
+          var modes = res.modes || [];
+          var labels = res.mode_labels || [];
+          for (var i = 0; i < modes.length; i++) {
+            var tag = document.createElement("span");
+            tag.className = "mode-tag " + modes[i];
+            tag.textContent = "第" + (i + 1) + "个区域 · " + (labels[i] || MODE_LABEL[modes[i]] || modes[i]);
+            modeTags.appendChild(tag);
+          }
+          resultEl.style.display = "block";
+          resultEmpty.style.display = "none";
+          if (res.needs_review) {
+            var warnings = res.review_warnings || [];
+            var details = warnings.map(function (item) {
+              return "第" + item.page + "张图第" + item.selection + "个区域：" +
+                (item.messages || []).join("；");
+            }).join("　");
+            setStatus("PDF 已生成，但有 " + warnings.length + " 个区域需要人工复核。" + details, "error");
+          } else {
+            setStatus("完成！自动检查未发现明显答案残留，可下载打印。", "ok");
+          }
+        } else {
+          setStatus(res.error, "error");
+        }
+        updateButtons();
+      })
+      .catch(function (err) {
+        busy = false;
+        setStatus("网络或服务出错：" + err.message, "error");
+        updateButtons();
+      });
+  });
+
+  cv.addEventListener("touchstart", function (e) {
+    if (!curPage() || busy || e.touches.length !== 1) return;
+    var t = e.touches[0];
+    var rect = cv.getBoundingClientRect();
+    var x = (t.clientX - rect.left) * (cv.width / rect.width);
+    var y = (t.clientY - rect.top) * (cv.height / rect.height);
+    drawing = true;
+    cur = { x1: x, y1: y, x2: x, y2: y };
+    e.preventDefault();
+  }, { passive: false });
+  cv.addEventListener("touchmove", function (e) {
+    if (!drawing || e.touches.length !== 1) return;
+    var t = e.touches[0];
+    var rect = cv.getBoundingClientRect();
+    cur.x2 = (t.clientX - rect.left) * (cv.width / rect.width);
+    cur.y2 = (t.clientY - rect.top) * (cv.height / rect.height);
+    render();
+    e.preventDefault();
+  }, { passive: false });
+  cv.addEventListener("touchend", function () {
+    if (!drawing) return;
+    drawing = false;
+    commitBox();
+  });
+})();
+</script>
+</body>
+</html>
