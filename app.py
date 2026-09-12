@@ -53,13 +53,15 @@ def job_dir():
 
 
 def load_config():
-    """读取 config.json，返回 dict。"""
+    """读取可共享配置；配置文件缺失时使用安全的内置默认值。"""
     global _config
     if _config is not None:
         return _config
     try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
+        cfg = {}
+        if os.path.isfile(CONFIG_PATH):
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
         local = {}
         if os.path.isfile(LOCAL_CONFIG_PATH):
             with open(LOCAL_CONFIG_PATH, encoding="utf-8") as f:
@@ -607,8 +609,7 @@ if __name__ == "__main__":
     else:
         print("密钥：未配置 →", cfg["reason"])
         print("请配置环境变量或 config.local.json 中的腾讯云密钥")
-    print("启动后浏览器自动打开，地址 http://127.0.0.1:7860")
+    port = int(os.environ.get("PORT", "7860"))
+    print(f"启动后访问 http://127.0.0.1:{port}")
     print("=" * 50)
-    import webbrowser
-    webbrowser.open("http://127.0.0.1:7860")
-    app.run(host="127.0.0.1", port=7860, debug=False)
+    app.run(host="0.0.0.0", port=port, debug=False)
